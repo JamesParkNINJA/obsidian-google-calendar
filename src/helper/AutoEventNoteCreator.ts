@@ -47,7 +47,7 @@ export const checkForEventNotes = async (plugin: GoogleCalendarPlugin): Promise<
             await createNoteFromEvent(events[i], plugin.settings.defaultFolder, plugin.settings.defaultTemplate, true)
         } else {
 
-            const regex = new RegExp(`:([^:]*-)?${plugin.settings.autoCreateEventNotesMarker}-?([^:]*)?:`)
+            const regex = new RegExp(`:([^:]*)?-${plugin.settings.autoCreateEventNotesMarker}-?([^:]*)?:`)
 
             //regex will check for text and extract a template name if it exists
             const match = events[i].description?.match(regex) ?? [];
@@ -86,7 +86,8 @@ const insertEventIdInFrontmatter = (event: GoogleEvent, fileContent: string, pos
 
 const injectEventDetails = (event: GoogleEvent, inputText: string): string => {
     const regexp = /{{gEvent\.([^}>]*)}}/gm;
-    let matches;
+    const getNavigatorLanguage = () => (navigator.languages && navigator.languages.length) ? navigator.languages[0] : navigator.userLanguage || navigator.language || navigator.browserLanguage || 'en-GB';
+    let matches; let dateTime = null;
     const output = [];
     do {
         matches = regexp.exec(inputText);
@@ -119,18 +120,44 @@ const injectEventDetails = (event: GoogleEvent, inputText: string): string => {
                 newContent = _.get(event, match[1], "");
             }
 
+            // If the user is querying "dateTime", but the event is set to "Full Day"
+            // Switch the query to "date" instead, so it doesn't return blank
+            if (match[1] == "start.dateTime" || match[1] == "end.dateTime") {
+                var altMatch = match[1].replace(/dateTime/gi, "date");
+                if (newContent) {
+                    dateTime = 'dateTime';
+                } else {
+                    dateTime = 'justDate';
+                    newContent = _.get(event, altMatch, "");
+                }
+            }
+
+            // Removes the Notes Marker from Event Description
+            if (match[1] == 'description') {
+                newContent = newContent.replace(/:([^:]*)?-([^:]*)?-?([^:]*)?:/, "");
+            }
+
             //Turn objects into json for a better display be more specific in the template
             if (newContent === Object(newContent)) {
                 newContent = JSON.stringify(newContent);
             }
 
-            inputText = inputText.replace(match[0], newContent ?? "")
+            // Turn dateTime/date into human readable format
+            if (dateTime !== null) {
+                var newDate = new Date(newContent),
+                    locale = getNavigatorLanguage();
+                newContent = newDate.toLocaleDateString(locale);
+                if (dateTime == 'dateTime') {
+                    newContent += ' '+ newDate.toLocaleTimeString(locale);
+                }
+                dateTime = null;
+            }
+
+            inputText = inputText.replace(match[0], newContent ?? "");
         }
     })
     return inputText;
 }
-
-
 
 function replacePathPlaceholders(plugin: GoogleCalendarPlugin, event: GoogleEvent, folderName: string): string {
 

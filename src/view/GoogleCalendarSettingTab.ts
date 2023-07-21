@@ -310,7 +310,7 @@ export class GoogleCalendarSettingTab extends PluginSettingTab {
 			.setClass("SubSettings")
 			.addSlider(cb => {
 				cb.setValue(this.plugin.settings.importEndOffset)
-				cb.setLimits(0, 7, 1);
+				cb.setLimits(0, 365, 1);
 				cb.setDynamicTooltip();
 				cb.onChange(async value => {
 					this.plugin.settings.importEndOffset = value;
